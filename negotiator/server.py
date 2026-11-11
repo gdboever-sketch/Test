@@ -18,6 +18,7 @@ import json
 import logging
 import secrets
 from importlib import resources
+from pathlib import Path
 from typing import Any, Callable
 
 import anthropic
@@ -32,6 +33,7 @@ from .config import Settings
 from .session import MeetingSession, SessionStore
 from .strategies import Playbook, PlaybookError
 from .telephony import Telephony, normalize_digits
+from .rehearsal import parse_transcript, rehearse, rounds_for
 from .transcriber import DeepgramTranscriber
 
 log = logging.getLogger(__name__)
@@ -45,6 +47,17 @@ class StartSessionRequest(BaseModel):
     digits: str | None = Field(
         default=None, description="DTMF to enter after connecting, e.g. 'wwww123456789#wwww#'."
     )
+
+
+LAB_MAX_LINES = 400
+LAB_MAX_ROUNDS = 60
+
+
+class LabRun(BaseModel):
+    brief: NegotiationBrief
+    transcript: str = Field(max_length=200_000)
+    every: int = Field(default=3, ge=1, le=50)
+    summary: bool = True
 
 
 class SpeakerLabel(BaseModel):
@@ -126,6 +139,61 @@ def create_app(
             "call_sid": session.call_sid,
             "dashboard_url": f"{settings.public_base_url}/s/{session.id}?token={session.token}",
         }
+
+    # ---- test lab: brief + written transcript, no phone needed ------------
+
+    lab_html = resources.files("negotiator").joinpath("static/lab.html").read_text()
+    examples_dir = Path(__file__).resolve().parent.parent / "examples"
+
+    @app.get("/lab", response_class=HTMLResponse)
+    async def lab() -> str:
+        return lab_html
+
+    @app.get("/api/lab/playbook", dependencies=[Depends(require_admin)])
+    async def lab_playbook() -> dict[str, Any]:
+        example: dict[str, Any] = {}
+        try:
+            example["brief"] = NegotiationBrief.load(examples_dir / "brief.example.yaml").model_dump()
+            example["transcript"] = (examples_dir / "transcript.example.txt").read_text()
+        except (OSError, ValueError):
+            log.warning("Example brief or transcript not found")
+        return {
+            "strategies": [
+                {"id": s.id, "name": s.name, "category": s.category, "summary": s.summary}
+                for s in playbook.strategies
+            ],
+            "example": example,
+        }
+
+    @app.post("/api/lab/run", dependencies=[Depends(require_admin)])
+    async def lab_run(body: LabRun):
+        lines = parse_transcript(body.transcript)
+        if not lines:
+            raise HTTPException(422, "No 'Name: what they said' lines found in the transcript.")
+        if len(lines) > LAB_MAX_LINES:
+            raise HTTPException(422, f"Transcript has {len(lines)} lines; the lab allows {LAB_MAX_LINES}.")
+        rounds = rounds_for(len(lines), body.every)
+        if rounds > LAB_MAX_ROUNDS:
+            raise HTTPException(
+                422, f"That is {rounds} analysis rounds; raise 'analyse every' to stay under {LAB_MAX_ROUNDS}."
+            )
+        try:
+            coach = Coach(body.brief, settings, client=claude, playbook=playbook)
+        except PlaybookError as e:
+            raise HTTPException(422, str(e)) from e
+
+        async def stream():
+            yield json.dumps({"type": "start", "lines": len(lines), "rounds": rounds,
+                              "strategies": coach.playbook.names()}) + "\n"
+            try:
+                async for event in rehearse(coach, lines, body.every, body.summary):
+                    yield json.dumps(event) + "\n"
+            except Exception as e:  # report the failure to the page instead of a broken stream
+                log.exception("Lab run failed")
+                yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+
+        return StreamingResponse(stream(), media_type="application/x-ndjson",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     # ---- dashboard ------------------------------------------------------
 

@@ -68,64 +68,37 @@ def cmd_strategies(args: argparse.Namespace) -> None:
         print(f"  {s.id:28} {s.summary}")
 
 
-def _parse_transcript(path: Path) -> list[tuple[str, str]]:
-    lines = []
-    for raw in path.read_text().splitlines():
-        if ":" in raw and raw.strip():
-            who, _, text = raw.partition(":")
-            lines.append((who.strip(), text.strip()))
-    return lines
-
-
 async def _replay(args: argparse.Namespace) -> None:
     from .coach import Coach
-    from .transcriber import Utterance
+    from .rehearsal import parse_transcript, rehearse
 
     settings = Settings.from_env()
     brief = NegotiationBrief.load(args.brief)
     coach = Coach(brief, settings)
     names = coach.playbook.names()
-    lines = _parse_transcript(Path(args.transcript))
+    lines = parse_transcript(Path(args.transcript).read_text())
     if not lines:
         sys.exit("No 'Speaker: text' lines found in the transcript.")
 
-    speakers: dict[str, int] = {}
-    labels: dict[int, str] = {}
-    utterances: list[Utterance] = []
-    chunks: list[str] = []
-    pending: list[Utterance] = []
-    latest = None
-    clock = 0.0
-
-    for i, (who, text) in enumerate(lines, start=1):
-        n = speakers.setdefault(who, len(speakers))
-        labels[n] = who
-        u = Utterance(n, text, clock, clock + 4)
-        clock += 5
-        utterances.append(u)
-        pending.append(u)
-        if i % args.every == 0 or i == len(lines):
-            chunks.append("\n".join(p.render() for p in pending))
-            pending = []
-            print(f"\n=== after line {i}: {who}: {text}")
-            update = await coach.analyze(chunks, latest, labels)
+    async for event in rehearse(coach, lines, args.every, args.summary):
+        if event["type"] == "analysis":
+            print(f"\n=== after line {event['after_line']}: {event['speaker']}: {event['text']}")
+            update = event["update"]
             if update is None:
                 print("  (no update)")
                 continue
-            latest = update
-            for a in update.alerts:
-                print(f"  ! [{a.severity}] {a.text}")
-            for s in update.suggestions:
-                via = f"  ({names[s.strategy]})" if s.strategy in names else ""
-                print(f"  > [{s.priority}/{s.kind}] {s.text}{via}\n      {s.rationale}")
-
-    if latest:
-        print("\n=== offers")
-        for o in latest.offers:
-            print(f"  {o.party:4} {o.term}: {o.value} ({o.status})")
-    if args.summary:
-        print("\n=== debrief\n")
-        print(await coach.summarize("\n".join(u.render() for u in utterances), latest, labels))
+            for a in update["alerts"]:
+                print(f"  ! [{a['severity']}] {a['text']}")
+            for s in update["suggestions"]:
+                via = f"  ({names[s['strategy']]})" if s["strategy"] in names else ""
+                print(f"  > [{s['priority']}/{s['kind']}] {s['text']}{via}\n      {s['rationale']}")
+        elif event["type"] == "summary":
+            print("\n=== debrief\n")
+            print(event["markdown"])
+        elif event["type"] == "done" and event["final"]:
+            print("\n=== offers")
+            for o in event["final"]["offers"]:
+                print(f"  {o['party']:4} {o['term']}: {o['value']} ({o['status']})")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -133,7 +106,9 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="negotiator", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    serve = sub.add_parser("serve", help="Run the server Twilio connects to.")
+    serve = sub.add_parser(
+        "serve", help="Run the server (live calls, dashboard, and the test lab at /lab)."
+    )
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
     serve.set_defaults(func=cmd_serve)

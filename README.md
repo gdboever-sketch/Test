@@ -79,7 +79,7 @@ cp .env.example .env    # fill in the keys
 Twilio has to reach the server over public HTTPS, so for local use run a tunnel
 such as `ngrok http 8000` and put its URL in `PUBLIC_BASE_URL`.
 
-## Rehearse first (no phone needed)
+## Rehearse from the command line
 
 `replay` runs the coach over a written transcript, which is a cheap way to tune
 your brief before the real meeting:
@@ -87,6 +87,31 @@ your brief before the real meeting:
 ```bash
 negotiator replay --brief examples/brief.example.yaml examples/transcript.example.txt --summary
 ```
+
+## Test lab (web app)
+
+The server includes a test lab at `/lab`. You fill in a brief, paste a
+transcript, and watch the coach's output appear round by round, ending with
+the debrief. It needs only `ANTHROPIC_API_KEY` and `NEGOTIATOR_ADMIN_TOKEN` in
+`.env`. No Twilio, Deepgram or tunnel is involved.
+
+```bash
+negotiator serve
+# open http://127.0.0.1:8000/lab, enter your admin token, click "Load example", then "Run the coach"
+```
+
+1. **Brief:** goal, BATNA, issues with targets and walk-away points, tradeables,
+   red lines, what not to disclose, and which playbook strategies to prefer or exclude.
+2. **Transcript:** one `Name: what they said` per line. Choose how often the
+   coach analyses ("every 3 lines" is close to the live pace). The page shows
+   how many Claude calls the run will make.
+3. **Results:** each round shows the alerts and suggestions (tagged with their
+   strategy) after that point in the conversation, next to the running offer
+   ledger. The debrief comes last.
+
+Every run calls the Claude API on your key. The lab is limited to 400 lines and
+60 rounds per run, and it needs the admin token, so a publicly exposed server
+can't run up your bill.
 
 ## Join a real meeting
 
