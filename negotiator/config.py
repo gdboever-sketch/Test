@@ -75,7 +75,8 @@ class Settings:
             twilio_from_number=env("TWILIO_FROM_NUMBER", ""),
             deepgram_api_key=env("DEEPGRAM_API_KEY", ""),
             deepgram_model=env("DEEPGRAM_MODEL", cls.deepgram_model),
-            public_base_url=env("PUBLIC_BASE_URL", "").rstrip("/"),
+            # Render sets RENDER_EXTERNAL_URL to the service's public https address.
+            public_base_url=(env("PUBLIC_BASE_URL") or env("RENDER_EXTERNAL_URL") or "").rstrip("/"),
             admin_token=env("NEGOTIATOR_ADMIN_TOKEN", ""),
             validate_twilio_signatures=_bool(env("VALIDATE_TWILIO_SIGNATURES"), True),
             announce_on_join=_bool(env("ANNOUNCE_ON_JOIN"), True),

@@ -1,0 +1,18 @@
+# One-click hosting on Render (https://render.com): New > Blueprint > pick this repo.
+# Render asks for ANTHROPIC_API_KEY and generates a strong NEGOTIATOR_ADMIN_TOKEN.
+services:
+  - type: web
+    name: negotiation-coach
+    runtime: python
+    plan: free
+    # Editable install so the bundled strategies/ and examples/ folders are found.
+    buildCommand: pip install -e .
+    startCommand: uvicorn negotiator.server:app_from_env --factory --host 0.0.0.0 --port $PORT
+    healthCheckPath: /lab
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: NEGOTIATOR_ADMIN_TOKEN
+        generateValue: true
+      - key: COACH_EFFORT
+        value: low

@@ -79,6 +79,21 @@ cp .env.example .env    # fill in the keys
 Twilio has to reach the server over public HTTPS, so for local use run a tunnel
 such as `ngrok http 8000` and put its URL in `PUBLIC_BASE_URL`.
 
+## Host it online (works from an iPad)
+
+[`render.yaml`](render.yaml) sets the agent up on [Render](https://render.com),
+so it runs at a public `https://….onrender.com` address:
+
+1. On render.com, sign up with GitHub, choose **New → Blueprint**, and select this repository.
+2. Paste your Anthropic API key when it asks for `ANTHROPIC_API_KEY`, then click **Deploy**.
+3. When the deploy finishes, open the service's **Environment** tab and copy the
+   generated `NEGOTIATOR_ADMIN_TOKEN`.
+4. Open `https://<your-service>.onrender.com/lab` and enter that token.
+
+On the free plan the service sleeps when idle, so the first visit after a break
+takes about a minute. `PUBLIC_BASE_URL` defaults to the Render address, which
+Twilio needs later for live calls.
+
 ## Rehearse from the command line
 
 `replay` runs the coach over a written transcript, which is a cheap way to tune
