@@ -1,0 +1,39 @@
+title: Renewal of analytics platform contract with DataCo
+me: Jordan, Head of Procurement at Acme Corp, negotiating for Acme.
+counterpart: >
+  DataCo account executive (Sam) and their sales director. DataCo is pushing
+  to hit quarter-end numbers, which close in two weeks.
+goal: Renew for 2 years with a meaningful price cut and better support terms.
+batna: >
+  Migrate to a competitor quoted at $410k/year. The switch would take about
+  4 months and cost roughly $60k in one-off work.
+issues:
+  - name: Annual price
+    target: $380k per year
+    walk_away: $440k per year
+    priority: 5
+    notes: Current price is $465k per year.
+  - name: Contract length
+    target: 2 years
+    walk_away: 3 years, but only with price protection
+    priority: 3
+  - name: Support SLA
+    target: 4-hour response on P1 incidents
+    walk_away: 8-hour response on P1 incidents
+    priority: 4
+  - name: Payment terms
+    target: Net 60
+    walk_away: Net 30
+    priority: 2
+tradeables:
+  - A public case study or logo use
+  - Annual upfront payment
+  - Signing before their quarter ends
+red_lines:
+  - No auto-renewal clause without 90 days' notice
+  - No price increases above 3% per year
+do_not_disclose:
+  - The competitor's exact quote
+  - That migration would take 4 months
+context: Budget for next year is already approved at $430k.
+style: Firm and friendly; keep the relationship intact.

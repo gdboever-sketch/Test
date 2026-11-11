@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Negotiation coach</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e3e3de;
+    --accent: #2f5fd0; --high: #b4261a; --warn: #a15c00; --info: #2f5fd0; --ok: #1f7a3f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --panel: #1f1f1d; --text: #ececea; --muted: #9a9a94; --line: #33332f;
+      --accent: #7b9cf0; --high: #f07a6e; --warn: #e3a34c; --info: #7b9cf0; --ok: #5fc485;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+           border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; flex: 1; min-width: 160px; }
+  .pill { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.live { color: var(--ok); border-color: var(--ok); }
+  main { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; padding: 16px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 10px; }
+  .suggestion { padding: 10px 0; border-top: 1px solid var(--line); }
+  .suggestion:first-of-type { border-top: 0; padding-top: 0; }
+  .suggestion .text { font-size: 19px; font-weight: 600; }
+  .suggestion.high .text { font-size: 22px; }
+  .suggestion .meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .kind { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+  .alert { padding: 8px 10px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid var(--info); background: color-mix(in srgb, var(--info) 10%, transparent); }
+  .alert.critical { border-color: var(--high); background: color-mix(in srgb, var(--high) 14%, transparent); font-weight: 600; }
+  .alert.warning { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { text-align: left; padding: 5px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; border-top: 0; }
+  ul { margin: 0; padding-left: 18px; }
+  #transcript { max-height: 46vh; overflow-y: auto; font-size: 14px; }
+  #transcript div { padding: 3px 0; }
+  .empty { color: var(--muted); font-style: italic; }
+  form { display: flex; gap: 8px; flex-wrap: wrap; }
+  input, textarea, button { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; }
+  textarea { flex: 1 1 100%; min-height: 54px; resize: vertical; }
+  input[type=number] { width: 80px; }
+  input[type=text] { flex: 1; min-width: 120px; }
+  button { cursor: pointer; background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.danger { background: transparent; color: var(--high); border-color: var(--high); }
+  #summary { white-space: pre-wrap; }
+  .thinking { color: var(--muted); font-size: 12px; visibility: hidden; }
+  .thinking.on { visibility: visible; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Negotiation coach</h1>
+  <span class="thinking" id="thinking">updating…</span>
+  <span class="pill" id="status">connecting</span>
+  <button class="danger" id="hangup" type="button">Leave call</button>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>Next moves</h2>
+      <div id="suggestions"><p class="empty">Waiting for the conversation to start.</p></div>
+    </section>
+    <section>
+      <h2>Alerts</h2>
+      <div id="alerts"><p class="empty">None.</p></div>
+    </section>
+    <section>
+      <h2>Where it stands</h2>
+      <p id="state-summary" class="empty">No analysis yet.</p>
+      <h2>Counterpart signals</h2>
+      <ul id="signals"></ul>
+    </section>
+    <section id="summary-section" hidden>
+      <h2>Debrief</h2>
+      <div id="summary"></div>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>Offers on the table</h2>
+      <table><thead><tr><th>Side</th><th>Term</th><th>Value</th><th>Status</th></tr></thead>
+        <tbody id="offers"><tr><td colspan="4" class="empty">None yet.</td></tr></tbody></table>
+    </section>
+    <section>
+      <h2>Private note to the coach</h2>
+      <form id="note-form">
+        <textarea id="note" placeholder="e.g. They just sent a 5% discount in the chat. I can go to 18 months if needed."></textarea>
+        <button type="submit">Send</button>
+      </form>
+    </section>
+    <section>
+      <h2>Who is speaking</h2>
+      <form id="speaker-form">
+        <input type="number" id="speaker-num" min="0" value="0" aria-label="Speaker number">
+        <input type="text" id="speaker-label" placeholder="Me, or their name and role">
+        <button type="submit">Label</button>
+      </form>
+      <ul id="speakers" style="margin-top:8px"></ul>
+    </section>
+    <section>
+      <h2>Transcript</h2>
+      <div id="transcript"><p class="empty">Nothing yet.</p></div>
+    </section>
+  </div>
+</main>
+<script>
+(() => {
+  const id = location.pathname.split("/").pop();
+  const token = new URLSearchParams(location.search).get("token") || "";
+  const api = (path) => `/api/s/${id}/${path}?token=${encodeURIComponent(token)}`;
+  const $ = (sel) => document.getElementById(sel);
+  const el = (tag, attrs = {}, text) => {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  const post = (path, body) => fetch(api(path), {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body || {}),
+  });
+
+  function renderAnalysis(a) {
+    if (!a) return;
+    const sugg = $("suggestions"); sugg.replaceChildren();
+    if (!a.suggestions.length) sugg.append(el("p", {class: "empty"}, "Nothing to add right now."));
+    for (const s of a.suggestions) {
+      const box = el("div", {class: `suggestion ${s.priority}`});
+      const line = el("div", {class: "text"});
+      line.append(el("span", {class: "kind"}, s.kind), document.createTextNode(s.text));
+      box.append(line, el("div", {class: "meta"}, s.rationale));
+      sugg.append(box);
+    }
+    const alerts = $("alerts"); alerts.replaceChildren();
+    if (!a.alerts.length) alerts.append(el("p", {class: "empty"}, "None."));
+    for (const al of a.alerts) alerts.append(el("div", {class: `alert ${al.severity}`}, al.text));
+    const offers = $("offers"); offers.replaceChildren();
+    if (!a.offers.length) {
+      const tr = el("tr"); tr.append(el("td", {colspan: 4, class: "empty"}, "None yet.")); offers.append(tr);
+    }
+    for (const o of a.offers) {
+      const tr = el("tr");
+      tr.append(el("td", {}, o.party === "us" ? "Us" : "Them"), el("td", {}, o.term),
+                el("td", {}, o.value), el("td", {}, o.status));
+      offers.append(tr);
+    }
+    const summary = $("state-summary");
+    summary.textContent = a.summary; summary.className = "";
+    const signals = $("signals"); signals.replaceChildren();
+    for (const s of a.counterpart_signals) signals.append(el("li", {}, s));
+  }
+
+  function renderSpeakers(map) {
+    const list = $("speakers"); list.replaceChildren();
+    for (const [n, label] of Object.entries(map || {})) list.append(el("li", {}, `Speaker ${n}: ${label}`));
+  }
+
+  function addLine(line) {
+    const box = $("transcript");
+    const empty = box.querySelector(".empty"); if (empty) empty.remove();
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    box.append(el("div", {}, line));
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  function setStatus(s) {
+    const pill = $("status"); pill.textContent = s;
+    pill.className = "pill" + (s === "in meeting" ? " live" : "");
+  }
+
+  function showSummary(text) {
+    if (!text) return;
+    $("summary-section").hidden = false; $("summary").textContent = text;
+  }
+
+  const events = new EventSource(api("events"));
+  events.addEventListener("snapshot", (e) => {
+    const s = JSON.parse(e.data);
+    $("title").textContent = s.title; document.title = s.title;
+    setStatus(s.status); renderAnalysis(s.analysis); renderSpeakers(s.speakers); showSummary(s.summary);
+    $("transcript").replaceChildren(); s.transcript.forEach(addLine);
+    if (!s.transcript.length) $("transcript").append(el("p", {class: "empty"}, "Nothing yet."));
+  });
+  events.addEventListener("transcript", (e) => addLine(JSON.parse(e.data)));
+  events.addEventListener("analysis", (e) => renderAnalysis(JSON.parse(e.data)));
+  events.addEventListener("speakers", (e) => renderSpeakers(JSON.parse(e.data)));
+  events.addEventListener("status", (e) => setStatus(JSON.parse(e.data)));
+  events.addEventListener("summary", (e) => showSummary(JSON.parse(e.data)));
+  events.addEventListener("thinking", (e) => $("thinking").classList.toggle("on", JSON.parse(e.data)));
+  events.onerror = () => setStatus("reconnecting");
+
+  $("note-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const note = $("note").value.trim(); if (!note) return;
+    await post("notes", {note}); $("note").value = "";
+  });
+  $("speaker-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await post("speakers", {speaker: Number($("speaker-num").value), label: $("speaker-label").value});
+    $("speaker-label").value = "";
+  });
+  $("hangup").addEventListener("click", async () => {
+    if (confirm("Leave the meeting? The coach will stop listening and write the debrief.")) await post("hangup");
+  });
+})();
+</script>
+</body>
+</html>
