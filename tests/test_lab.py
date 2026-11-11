@@ -56,3 +56,12 @@ def test_lab_run_validation(settings, fake_claude, brief):
         assert r.status_code == 422 and "rounds" in r.text
         body.update(every=3, brief={**brief.model_dump(), "excluded_strategies": ["nope"]})
         assert client.post("/api/lab/run", headers=AUTH, json=body).status_code == 422
+
+
+def test_lab_run_needs_an_api_key(settings, brief, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    with TestClient(create_app(settings)) as client:
+        r = client.post("/api/lab/run", headers=AUTH,
+                        json={"brief": brief.model_dump(), "transcript": "A: hi"})
+        assert r.status_code == 503 and "ANTHROPIC_API_KEY" in r.text

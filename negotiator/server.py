@@ -16,6 +16,7 @@ import asyncio
 import base64
 import json
 import logging
+import os
 import secrets
 from importlib import resources
 from pathlib import Path
@@ -167,6 +168,12 @@ def create_app(
 
     @app.post("/api/lab/run", dependencies=[Depends(require_admin)])
     async def lab_run(body: LabRun):
+        if claude is None and not (
+            os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        ):
+            raise HTTPException(
+                503, "ANTHROPIC_API_KEY is not set on the server. Add it to .env and restart."
+            )
         lines = parse_transcript(body.transcript)
         if not lines:
             raise HTTPException(422, "No 'Name: what they said' lines found in the transcript.")
