@@ -44,6 +44,26 @@ Everything is driven by a **negotiation brief** you write before the call:
 goal, BATNA, issues with targets and walk-away points, tradeables, red lines,
 and what not to disclose. See [`examples/brief.example.yaml`](examples/brief.example.yaml).
 
+## Strategy playbook
+
+The coach follows a playbook of negotiation strategies kept in
+[`strategies/`](strategies/), with one Markdown file per strategy. Each file
+says when the strategy applies, what to listen for, when not to use it, the
+moves to make, and phrases to say. Each suggestion on the dashboard shows the
+strategy it came from. The bundled playbook has 21 strategies in seven
+categories: preparation, opening, information, value creation, concessions,
+closing, and defense against hardball tactics.
+
+- **Add or edit strategies** by editing the Markdown files. The format is in
+  [`strategies/README.md`](strategies/README.md). Check your changes with
+  `negotiator strategies check`.
+- **Tune it per negotiation** with `preferred_strategies` and
+  `excluded_strategies` in the brief.
+- **Keep it in its own repository** by setting `STRATEGIES_DIR` to a checkout of it.
+
+The whole playbook (about 6k tokens) is sent in the cached system prompt, so
+each analysis reads it from the cache instead of paying full price.
+
 ## Setup
 
 You need Python 3.10+, plus accounts with
@@ -154,6 +174,8 @@ negotiator/
   telephony.py    Twilio dial-out, TwiML, signature checks
   session.py      per-meeting state, coaching loop, persistence
   server.py       FastAPI: API, dashboard feed, Twilio media WebSocket
+  strategies.py   loads and validates the playbook
   static/dashboard.html
-  cli.py          serve / dial / replay
+  cli.py          serve / dial / replay / strategies
+strategies/       the playbook: one Markdown file per strategy
 ```

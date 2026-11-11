@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from negotiator.coach import COACHING_SCHEMA, Coach, CoachingUpdate
+from negotiator.coach import Coach, CoachingUpdate, build_schema
 
 from .conftest import ANALYSIS, FakeClaude
 
@@ -12,9 +12,14 @@ def test_request_shape_and_caching(brief, settings, fake_claude):
     assert req["model"] == "claude-opus-5-5"
     assert "temperature" not in req and "thinking" not in req
     assert req["fallbacks"] == "default"
-    assert req["output_config"]["format"]["schema"] is COACHING_SCHEMA
+    schema = req["output_config"]["format"]["schema"]
+    strategy_enum = schema["properties"]["suggestions"]["items"]["properties"]["strategy"]["enum"]
+    assert "conditional-concessions" in strategy_enum and strategy_enum[-1] == "none"
     assert req["system"][0]["cache_control"] == {"type": "ephemeral"}
-    assert "Annual price" in req["system"][0]["text"]
+    system = req["system"][0]["text"]
+    assert "Annual price" in system
+    assert '<strategy id="deadline-pressure" category="defense">' in system
+    assert "favoured when they fit: trade-across-issues, objective-criteria" in system
     blocks = req["messages"][0]["content"]
     # Two transcript windows, cache breakpoint on the newest, then the volatile tail.
     assert len(blocks) == 3
@@ -55,4 +60,11 @@ def test_schema_is_closed_and_fully_required():
         elif node.get("type") == "array":
             walk(node["items"])
 
-    walk(COACHING_SCHEMA)
+    walk(build_schema(["a", "b"]))
+
+
+def test_excluded_strategies_are_removed(brief, settings, fake_claude):
+    brief.excluded_strategies = ["strategic-silence"]
+    coach = Coach(brief, settings, client=fake_claude)
+    assert "strategic-silence" not in coach.playbook.ids
+    assert 'id="strategic-silence"' not in coach._system[0]["text"]

@@ -30,6 +30,7 @@ from .brief import NegotiationBrief
 from .coach import Coach
 from .config import Settings
 from .session import MeetingSession, SessionStore
+from .strategies import Playbook, PlaybookError
 from .telephony import Telephony, normalize_digits
 from .transcriber import DeepgramTranscriber
 
@@ -62,6 +63,10 @@ def create_app(
     transcriber_factory: Callable[..., Any] | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Negotiation coach")
+    # Load (and validate) the playbook at startup so a broken strategy file
+    # fails fast instead of in the middle of a call.
+    playbook = Playbook.load(settings.strategies_dir)
+    log.info("Loaded %d strategies", len(playbook))
     store = SessionStore()
     app.state.store = store
     app.state.settings = settings
@@ -101,7 +106,10 @@ def create_app(
             digits = normalize_digits(body.digits)
         except ValueError as e:
             raise HTTPException(422, str(e)) from e
-        coach = Coach(body.brief, settings, client=claude)
+        try:
+            coach = Coach(body.brief, settings, client=claude, playbook=playbook)
+        except PlaybookError as e:
+            raise HTTPException(422, str(e)) from e
         session = store.add(MeetingSession(brief=body.brief, coach=coach, settings=settings))
         session.start()
         session.set_status("dialing")

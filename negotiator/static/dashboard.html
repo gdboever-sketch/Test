@@ -33,6 +33,7 @@
   .suggestion .text { font-size: 19px; font-weight: 600; }
   .suggestion.high .text { font-size: 22px; }
   .suggestion .meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .strategy { display: inline-block; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; margin-left: 6px; }
   .kind { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
   .alert { padding: 8px 10px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid var(--info); background: color-mix(in srgb, var(--info) 10%, transparent); }
   .alert.critical { border-color: var(--high); background: color-mix(in srgb, var(--high) 14%, transparent); font-weight: 600; }
@@ -124,6 +125,7 @@
     if (text !== undefined) node.textContent = text;
     return node;
   };
+  let strategyNames = {};
   const post = (path, body) => fetch(api(path), {
     method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body || {}),
   });
@@ -136,7 +138,11 @@
       const box = el("div", {class: `suggestion ${s.priority}`});
       const line = el("div", {class: "text"});
       line.append(el("span", {class: "kind"}, s.kind), document.createTextNode(s.text));
-      box.append(line, el("div", {class: "meta"}, s.rationale));
+      const meta = el("div", {class: "meta"}, s.rationale);
+      if (s.strategy && s.strategy !== "none") {
+        meta.append(el("span", {class: "strategy"}, strategyNames[s.strategy] || s.strategy));
+      }
+      box.append(line, meta);
       sugg.append(box);
     }
     const alerts = $("alerts"); alerts.replaceChildren();
@@ -184,6 +190,7 @@
   const events = new EventSource(api("events"));
   events.addEventListener("snapshot", (e) => {
     const s = JSON.parse(e.data);
+    strategyNames = s.strategies || {};
     $("title").textContent = s.title; document.title = s.title;
     setStatus(s.status); renderAnalysis(s.analysis); renderSpeakers(s.speakers); showSummary(s.summary);
     $("transcript").replaceChildren(); s.transcript.forEach(addLine);

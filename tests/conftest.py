@@ -11,7 +11,7 @@ EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 
 ANALYSIS = {
     "suggestions": [
-        {"priority": "high", "kind": "ask", "text": "What drives the increase?", "rationale": "Test their anchor."}
+        {"priority": "high", "kind": "ask", "strategy": "counter-an-extreme-anchor", "text": "What drives the increase?", "rationale": "Test their anchor."}
     ],
     "alerts": [{"severity": "critical", "text": "You revealed your budget."}],
     "offers": [{"party": "them", "term": "Annual price", "value": "$480k", "status": "proposed"}],

@@ -37,3 +37,6 @@ do_not_disclose:
   - That migration would take 4 months
 context: Budget for next year is already approved at $430k.
 style: Firm and friendly; keep the relationship intact.
+preferred_strategies:
+  - trade-across-issues
+  - objective-criteria

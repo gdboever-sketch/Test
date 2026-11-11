@@ -70,6 +70,7 @@ class MeetingSession:
             "notes": self.notes,
             "analysis": self.latest.model_dump() if self.latest else None,
             "summary": self.summary,
+            "strategies": self.coach.playbook.names(),
         }
 
     def set_status(self, status: str) -> None:

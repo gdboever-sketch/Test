@@ -38,6 +38,12 @@ class NegotiationBrief(BaseModel):
     )
     context: str | None = Field(default=None, description="Background, history, deadlines.")
     style: str | None = Field(default=None, description="How you want to come across.")
+    preferred_strategies: list[str] = Field(
+        default_factory=list, description="Playbook strategy ids to favour when they fit."
+    )
+    excluded_strategies: list[str] = Field(
+        default_factory=list, description="Playbook strategy ids the coach must not use."
+    )
 
     @classmethod
     def load(cls, path: str | Path) -> "NegotiationBrief":

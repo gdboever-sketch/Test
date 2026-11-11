@@ -16,6 +16,7 @@ from pydantic import BaseModel, ValidationError
 
 from .brief import NegotiationBrief
 from .config import Settings
+from .strategies import Playbook
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 class Suggestion(BaseModel):
     priority: Literal["high", "medium", "low"]
     kind: Literal["say", "ask", "avoid", "tactic"]
+    strategy: str
     text: str
     rationale: str
 
@@ -49,19 +51,27 @@ class CoachingUpdate(BaseModel):
     summary: str
 
 
+NO_STRATEGY = "none"
+
+
 # Written by hand (not generated from the Pydantic models) so it stays within
 # what structured outputs accepts: every object closed, every field required.
-_SUGGESTION = {
-    "type": "object",
-    "properties": {
-        "priority": {"type": "string", "enum": ["high", "medium", "low"]},
-        "kind": {"type": "string", "enum": ["say", "ask", "avoid", "tactic"]},
-        "text": {"type": "string"},
-        "rationale": {"type": "string"},
-    },
-    "required": ["priority", "kind", "text", "rationale"],
-    "additionalProperties": False,
-}
+def _suggestion_schema(strategy_ids: list[str]) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+            "kind": {"type": "string", "enum": ["say", "ask", "avoid", "tactic"]},
+            # Restricted to the playbook's ids so every citation is real.
+            "strategy": {"type": "string", "enum": [*strategy_ids, NO_STRATEGY]},
+            "text": {"type": "string"},
+            "rationale": {"type": "string"},
+        },
+        "required": ["priority", "kind", "strategy", "text", "rationale"],
+        "additionalProperties": False,
+    }
+
+
 _ALERT = {
     "type": "object",
     "properties": {
@@ -85,18 +95,21 @@ _OFFER = {
     "required": ["party", "term", "value", "status"],
     "additionalProperties": False,
 }
-COACHING_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "suggestions": {"type": "array", "items": _SUGGESTION},
-        "alerts": {"type": "array", "items": _ALERT},
-        "offers": {"type": "array", "items": _OFFER},
-        "counterpart_signals": {"type": "array", "items": {"type": "string"}},
-        "summary": {"type": "string"},
-    },
-    "required": ["suggestions", "alerts", "offers", "counterpart_signals", "summary"],
-    "additionalProperties": False,
-}
+
+
+def build_schema(strategy_ids: list[str]) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "suggestions": {"type": "array", "items": _suggestion_schema(strategy_ids)},
+            "alerts": {"type": "array", "items": _ALERT},
+            "offers": {"type": "array", "items": _OFFER},
+            "counterpart_signals": {"type": "array", "items": {"type": "string"}},
+            "summary": {"type": "string"},
+        },
+        "required": ["suggestions", "alerts", "offers", "counterpart_signals", "summary"],
+        "additionalProperties": False,
+    }
 
 SYSTEM_PROMPT = """\
 You are a private negotiation coach. Your user is in a live meeting with a \
@@ -123,6 +136,11 @@ constraints, priorities or emotional state that the transcript reveals.
 - summary: two or three sentences on where the negotiation stands.
 
 How to coach:
+- Work from the playbook. When a strategy's signals or "use when" conditions \
+match the moment, base the suggestion on its moves and phrasing and set \
+`strategy` to its id. Respect each strategy's "avoid when". Use "none" only \
+when no strategy fits. Favour the strategies the user marked as preferred \
+when they fit equally well.
 - Work from the brief. Protect the red lines and the do-not-disclose list, \
 push toward the targets on high-priority issues, and use tradeables to get \
 movement on what matters.
@@ -152,16 +170,24 @@ class Coach:
         brief: NegotiationBrief,
         settings: Settings,
         client: anthropic.AsyncAnthropic | None = None,
+        playbook: Playbook | None = None,
     ) -> None:
         self.brief = brief
         self.settings = settings
         self.client = client or anthropic.AsyncAnthropic()
-        # The system prompt and brief never change during a call, so they are
-        # cached once and reused on every analysis.
+        playbook = playbook or Playbook.load(settings.strategies_dir)
+        self.playbook = playbook.select(brief.preferred_strategies, brief.excluded_strategies)
+        self.schema = build_schema(self.playbook.ids)
+        # The system prompt, playbook and brief never change during a call, so
+        # they are cached once and reused on every analysis.
         self._system = [
             {
                 "type": "text",
-                "text": f"{SYSTEM_PROMPT}\n<brief>\n{brief.render()}\n</brief>",
+                "text": (
+                    f"{SYSTEM_PROMPT}\n"
+                    f"{self.playbook.render(brief.preferred_strategies)}\n\n"
+                    f"<brief>\n{brief.render()}\n</brief>"
+                ),
                 "cache_control": {"type": "ephemeral"},
             }
         ]
@@ -215,7 +241,7 @@ class Coach:
             "system": self._system,
             "output_config": {
                 "effort": self.settings.coach_effort,
-                "format": {"type": "json_schema", "schema": COACHING_SCHEMA},
+                "format": {"type": "json_schema", "schema": self.schema},
             },
             "messages": [{"role": "user", "content": content}],
         }
@@ -280,7 +306,9 @@ class Coach:
             "The meeting has ended. Write a debrief for the user in Markdown with these "
             "sections: Outcome, Agreed terms, Open items, Concessions (ours and theirs), "
             "What the counterpart cares about, Commitments and next steps (with owners and "
-            "dates when stated), and Coaching notes for next time. Measure the outcome "
+            "dates when stated), and Coaching notes for next time. In the coaching notes, name "
+            "the playbook strategies (by name) that worked, that were missed, or that the "
+            "counterpart used. Measure the outcome "
             "against the brief's targets and walk-away points. Mark anything the "
             "transcript leaves ambiguous as unconfirmed."
         )

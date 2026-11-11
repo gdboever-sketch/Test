@@ -49,6 +49,25 @@ def cmd_dial(args: argparse.Namespace) -> None:
     print(f"Open your private dashboard:\n  {result['dashboard_url']}")
 
 
+def cmd_strategies(args: argparse.Namespace) -> None:
+    from .strategies import Playbook, PlaybookError
+
+    directory = args.dir or Settings.from_env().strategies_dir
+    try:
+        playbook = Playbook.load(directory)
+    except PlaybookError as e:
+        sys.exit(f"Playbook error: {e}")
+    if args.action == "check":
+        print(f"OK: {len(playbook)} strategies")
+        return
+    category = None
+    for s in playbook.strategies:
+        if s.category != category:
+            category = s.category
+            print(f"\n{category}")
+        print(f"  {s.id:28} {s.summary}")
+
+
 def _parse_transcript(path: Path) -> list[tuple[str, str]]:
     lines = []
     for raw in path.read_text().splitlines():
@@ -65,6 +84,7 @@ async def _replay(args: argparse.Namespace) -> None:
     settings = Settings.from_env()
     brief = NegotiationBrief.load(args.brief)
     coach = Coach(brief, settings)
+    names = coach.playbook.names()
     lines = _parse_transcript(Path(args.transcript))
     if not lines:
         sys.exit("No 'Speaker: text' lines found in the transcript.")
@@ -96,7 +116,8 @@ async def _replay(args: argparse.Namespace) -> None:
             for a in update.alerts:
                 print(f"  ! [{a.severity}] {a.text}")
             for s in update.suggestions:
-                print(f"  > [{s.priority}/{s.kind}] {s.text}\n      {s.rationale}")
+                via = f"  ({names[s.strategy]})" if s.strategy in names else ""
+                print(f"  > [{s.priority}/{s.kind}] {s.text}{via}\n      {s.rationale}")
 
     if latest:
         print("\n=== offers")
@@ -135,6 +156,11 @@ def main(argv: list[str] | None = None) -> None:
     replay.add_argument("--every", type=int, default=3, help="Analyse after every N lines.")
     replay.add_argument("--summary", action="store_true", help="Also write the debrief.")
     replay.set_defaults(func=lambda a: asyncio.run(_replay(a)))
+
+    strategies = sub.add_parser("strategies", help="List or validate the strategy playbook.")
+    strategies.add_argument("action", choices=["list", "check"])
+    strategies.add_argument("--dir", help="Playbook folder (default: STRATEGIES_DIR or ./strategies).")
+    strategies.set_defaults(func=cmd_strategies)
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.WARNING)

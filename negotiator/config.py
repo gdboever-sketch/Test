@@ -59,6 +59,9 @@ class Settings:
     min_new_words: int = 25
 
     sessions_dir: Path = field(default_factory=lambda: Path("sessions"))
+    # Folder (or separate Git checkout) holding the strategy playbook.
+    # None means the playbook bundled with this repository.
+    strategies_dir: Path | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -80,4 +83,5 @@ class Settings:
             min_interval=float(env("COACH_MIN_INTERVAL", cls.min_interval)),
             min_new_words=int(env("COACH_MIN_NEW_WORDS", cls.min_new_words)),
             sessions_dir=Path(env("SESSIONS_DIR", "sessions")),
+            strategies_dir=Path(env("STRATEGIES_DIR")) if env("STRATEGIES_DIR") else None,
         )

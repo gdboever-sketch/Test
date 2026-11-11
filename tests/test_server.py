@@ -110,6 +110,7 @@ def test_full_call_flow(settings, fake_claude, brief):
         state = client.get(f"/api/s/{sid}/state?token={token}").json()
         assert state["speakers"] == {"0": "Me"}
         assert state["summary"].startswith("# Debrief")
+        assert state["strategies"]["counter-an-extreme-anchor"] == "Counter an extreme anchor"
 
         analysis_req = fake_claude.requests[0]
         tail = analysis_req["messages"][0]["content"][-1]["text"]
@@ -119,6 +120,14 @@ def test_full_call_flow(settings, fake_claude, brief):
         out = settings.sessions_dir / sid
         assert "480 thousand" in (out / "transcript.txt").read_text()
         assert (out / "summary.md").exists()
+
+
+def test_unknown_strategy_in_brief_is_rejected(settings, fake_claude, brief):
+    app, _ = _app(settings, fake_claude)
+    brief.preferred_strategies = ["does-not-exist"]
+    with TestClient(app) as client:
+        r = _start(client, brief)
+        assert r.status_code == 422 and "does-not-exist" in r.text
 
 
 def test_status_callback_checks_signature(settings, fake_claude, brief):
